@@ -91,11 +91,13 @@ extension UITableView {
         
         private var lastScrollIndicatorInsets: UIEdgeInsets?
         private var lastContentInset: UIEdgeInsets?
+        private var lastFrame: CGRect?
         private var mutex = pthread_mutex_t()
         
         deinit {
             try? ExceptionHandler.catchException {
                 base?.removeObserver(self, forKeyPath: #keyPath(UITableView.contentInset))
+                base?.removeObserver(self, forKeyPath: #keyPath(UITableView.center))
             }
             pthread_mutex_destroy(&mutex)
         }
@@ -114,6 +116,7 @@ extension UITableView {
                 tableView.transform = CGAffineTransform.identity.rotated(by: .pi)
             }
             tableView.addObserver(self, forKeyPath: #keyPath(UITableView.contentInset), options: [.new, .old], context: nil)
+            tableView.addObserver(self, forKeyPath: #keyPath(UITableView.center), options: [.new, .old], context: nil)
         }
         
         private func configureTableViewInsets() {
@@ -122,6 +125,12 @@ extension UITableView {
             }
             pthread_mutex_lock(&mutex)
             guard let base = base else { return }
+
+            if lastFrame?.width != self.base?.frame.width {
+                self.lastContentInset = nil
+                self.lastScrollIndicatorInsets = nil
+            }
+
             if let _ = self.lastContentInset, let _ = self.lastScrollIndicatorInsets {
                 return
             }
@@ -135,6 +144,7 @@ extension UITableView {
             base.scrollIndicatorInsets.top = scrollIndicatorInsets.bottom
             base.scrollIndicatorInsets.right = base.bounds.size.width - 8
             self.lastScrollIndicatorInsets = base.scrollIndicatorInsets
+            self.lastFrame = base.frame
         }
         
         private func configureCell(_ cell: UITableViewCell?) {
@@ -170,6 +180,8 @@ extension UITableView {
                         self?.configureCell(cell)
                     }
                 }
+            case (#keyPath(UITableView.center))?:
+                configureTableViewInsets()
             default:
                 break
             }
